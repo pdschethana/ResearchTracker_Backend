@@ -166,7 +166,7 @@ public class ProjectFileService {
     }
 }*/
 
-package com.example.reactauth.service;
+/*package com.example.reactauth.service;
 
 import com.example.reactauth.model.Project;
 import com.example.reactauth.model.ProjectFile;
@@ -221,6 +221,93 @@ public class ProjectFileService {
 
     public List<ProjectFile> getFilesByProject(Long projectId) {
         return fileRepo.findByProjectId(projectId);
+    }
+}*/
+
+package com.example.reactauth.service;
+
+import com.example.reactauth.model.Project;
+import com.example.reactauth.model.ProjectFile;
+import com.example.reactauth.repository.ProjectFileRepository;
+import com.example.reactauth.repository.ProjectRepository;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
+import java.nio.file.*;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.UUID;
+
+@Service
+public class ProjectFileService {
+
+    private final ProjectFileRepository fileRepo;
+    private final ProjectRepository projectRepo;
+
+    @Value("${file.upload-dir}")
+    private String uploadDir;
+
+    public ProjectFileService(ProjectFileRepository fileRepo, ProjectRepository projectRepo) {
+        this.fileRepo = fileRepo;
+        this.projectRepo = projectRepo;
+    }
+
+    // ✅ Upload a file and link to a project
+    public ProjectFile uploadFile(Long projectId, MultipartFile file, String uploadedBy) throws IOException {
+        Project project = projectRepo.findById(projectId)
+                .orElseThrow(() -> new RuntimeException("Project not found"));
+
+        // Create upload directory if it doesn't exist
+        Path uploadPath = Paths.get(uploadDir);
+        if (!Files.exists(uploadPath)) {
+            Files.createDirectories(uploadPath);
+        }
+
+        // Generate unique filename
+        String originalFilename = file.getOriginalFilename();
+        String fileExtension = "";
+        if (originalFilename != null && originalFilename.contains(".")) {
+            fileExtension = originalFilename.substring(originalFilename.lastIndexOf("."));
+        }
+        String storedFileName = UUID.randomUUID().toString() + fileExtension;
+
+        // Save file to disk
+        Path filePath = uploadPath.resolve(storedFileName);
+        Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+
+        // Create file URL for access
+        String fileUrl = "http://localhost:8080/uploads/" + storedFileName;
+
+        // Save to database
+        ProjectFile projectFile = new ProjectFile();
+        projectFile.setFileName(originalFilename); // Display name
+        projectFile.setStoredFileName(storedFileName); // Actual file name on disk
+        projectFile.setFileUrl(fileUrl);
+        projectFile.setUploadedBy(uploadedBy);
+        projectFile.setUploadedAt(LocalDateTime.now());
+        projectFile.setProject(project);
+
+        return fileRepo.save(projectFile);
+    }
+
+    public List<ProjectFile> getFilesByProject(Long projectId) {
+        return fileRepo.findByProjectId(projectId);
+    }
+
+    public ProjectFile getById(Long id) {
+        return fileRepo.findById(id).orElse(null);
+    }
+
+    public void deleteFile(Long id) throws IOException {
+        ProjectFile file = getById(id);
+        if (file != null && file.getStoredFileName() != null) {
+            // Delete physical file
+            Path filePath = Paths.get(uploadDir, file.getStoredFileName());
+            Files.deleteIfExists(filePath);
+        }
+        fileRepo.deleteById(id);
     }
 }
 

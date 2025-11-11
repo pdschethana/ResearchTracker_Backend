@@ -288,7 +288,7 @@ public class ProjectFileController {
     }
 }*/
 
-package com.example.reactauth.controller;
+/*package com.example.reactauth.controller;
 
 import com.example.reactauth.model.ProjectFile;
 import com.example.reactauth.service.ProjectFileService;
@@ -358,6 +358,114 @@ public class ProjectFileController {
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
                 .body(resource);
+    }
+
+    // DTO
+    public static class ProjectFileResponse {
+        private Long id;
+        private String fileName;
+        private String uploadedBy;
+        private LocalDateTime uploadedAt;
+        private String fileUrl;
+
+        public ProjectFileResponse(Long id, String fileName, String uploadedBy, LocalDateTime uploadedAt, String fileUrl) {
+            this.id = id;
+            this.fileName = fileName;
+            this.uploadedBy = uploadedBy;
+            this.uploadedAt = uploadedAt;
+            this.fileUrl = fileUrl;
+        }
+
+        // Getters and Setters
+        public Long getId() { return id; }
+        public String getFileName() { return fileName; }
+        public String getUploadedBy() { return uploadedBy; }
+        public LocalDateTime getUploadedAt() { return uploadedAt; }
+        public String getFileUrl() { return fileUrl; }
+
+        public void setId(Long id) { this.id = id; }
+        public void setFileName(String fileName) { this.fileName = fileName; }
+        public void setUploadedBy(String uploadedBy) { this.uploadedBy = uploadedBy; }
+        public void setUploadedAt(LocalDateTime uploadedAt) { this.uploadedAt = uploadedAt; }
+        public void setFileUrl(String fileUrl) { this.fileUrl = fileUrl; }
+    }
+}*/
+
+package com.example.reactauth.controller;
+
+import com.example.reactauth.model.ProjectFile;
+import com.example.reactauth.service.ProjectFileService;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.stream.Collectors;
+
+@RestController
+@RequestMapping("/api/projects")
+public class ProjectFileController {
+
+    private final ProjectFileService fileService;
+
+    public ProjectFileController(ProjectFileService fileService) {
+        this.fileService = fileService;
+    }
+
+    // ✅ Upload file
+    @PostMapping("/{projectId}/upload")
+    public ResponseEntity<ProjectFileResponse> uploadFile(
+            @PathVariable Long projectId,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam("uploadedBy") String uploadedBy
+    ) {
+        try {
+            ProjectFile savedFile = fileService.uploadFile(projectId, file, uploadedBy);
+
+            ProjectFileResponse response = new ProjectFileResponse(
+                    savedFile.getId(),
+                    savedFile.getFileName(),
+                    savedFile.getUploadedBy(),
+                    savedFile.getUploadedAt(),
+                    savedFile.getFileUrl()
+            );
+
+            return ResponseEntity.ok(response);
+        } catch (IOException e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500).build();
+        }
+    }
+
+    // ✅ Get all project files
+    @GetMapping("/{projectId}/files")
+    public ResponseEntity<List<ProjectFileResponse>> getProjectFiles(@PathVariable Long projectId) {
+        List<ProjectFile> files = fileService.getFilesByProject(projectId);
+
+        List<ProjectFileResponse> response = files.stream()
+                .map(f -> new ProjectFileResponse(
+                        f.getId(),
+                        f.getFileName(),
+                        f.getUploadedBy(),
+                        f.getUploadedAt(),
+                        f.getFileUrl() // Direct URL to file
+                )).collect(Collectors.toList());
+
+        return ResponseEntity.ok(response);
+    }
+
+    // ✅ Delete file (Admin only)
+    @DeleteMapping("/files/{id}")
+    public ResponseEntity<String> deleteFile(@PathVariable Long id) {
+        try {
+            fileService.deleteFile(id);
+            return ResponseEntity.ok("File deleted successfully");
+        } catch (IOException e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500).body("Failed to delete file");
+        }
     }
 
     // DTO
